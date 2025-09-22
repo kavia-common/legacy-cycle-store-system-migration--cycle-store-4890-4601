@@ -1,22 +1,60 @@
 const cors = require('cors');
 const express = require('express');
+const helmet = require('helmet');
+const crypto = require('crypto');
 const routes = require('./routes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('../swagger');
 const { correlationIdMiddleware } = require('./middleware');
+const logger = require('./middleware/logger');
 const config = require('./config');
 
 // Initialize express app
 const app = express();
 
-// CORS
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', config.correlationHeader],
-  exposedHeaders: [config.correlationHeader],
-}));
+// Security headers
+app.use(helmet());
+
+// Optional HTTPS enforcement behind a proxy/load balancer
 app.set('trust proxy', true);
+app.use((req, res, next) => {
+  if ((process.env.FORCE_HTTPS || 'false').toLowerCase() === 'true') {
+    const xfProto = (req.headers['x-forwarded-proto'] || '').toString().toLowerCase();
+    if (!req.secure && xfProto !== 'https') {
+      const host = req.get('host');
+      return res.redirect(301, `https://${host}${req.originalUrl}`);
+    }
+  }
+  return next();
+});
+
+// CORS
+const allowedOrigins = (process.env.CORS_ORIGINS || '*')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS not allowed'), false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', config.correlationHeader, 'X-Request-Id'],
+  exposedHeaders: [config.correlationHeader, 'X-Request-Id'],
+}));
+
+// Request ID (in addition to correlation id support)
+app.use((req, res, next) => {
+  const reqId = req.header('X-Request-Id') || crypto.randomUUID();
+  req.id = reqId;
+  res.setHeader('X-Request-Id', reqId);
+  next();
+});
+
+// Request logging (privacy-preserving)
+app.use(logger);
 
 // Swagger docs with dynamic server URL
 app.use('/docs', swaggerUi.serve, (req, res, next) => {
@@ -56,10 +94,11 @@ app.use('/', routes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   // eslint-disable-next-line no-console
-  console.error(err.stack);
+  console.error(`[${req.id}]`, err.stack);
   res.status(500).json({
     status: 'error',
     message: 'Internal Server Error',
+    requestId: req.id,
   });
 });
 
