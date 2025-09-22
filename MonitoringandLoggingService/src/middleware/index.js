@@ -1,4 +1,6 @@
-// This file will export middleware as the application grows
+const { correlationIdMiddleware } = require('./correlation');
+
+// This file exports middleware helpers
 module.exports = {
-  // Add your middleware here
+  correlationIdMiddleware,
 };
