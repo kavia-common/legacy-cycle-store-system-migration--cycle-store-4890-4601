@@ -1,22 +1,31 @@
-'use strict';
+/**
+ * Simple alerts controller storing alerts in-memory.
+ */
+const store = { alerts: [], rules: [] };
 
-const alertsService = require('../services/alertService');
+// PUBLIC_INTERFACE
+exports.list = async (req, res) => {
+  const { status } = req.query;
+  const filtered = status ? store.alerts.filter(a => a.status === status) : store.alerts;
+  return res.status(200).json(filtered);
+};
 
-function getAlerts(req, res) {
-  const { status, page = '1', pageSize = '20' } = req.query;
-  const out = alertsService.listAlerts({ status, page: parseInt(page, 10), pageSize: parseInt(pageSize, 10) });
-  return res.json(out);
-}
+// PUBLIC_INTERFACE
+exports.create = async (req, res) => {
+  const alert = { ...req.body };
+  store.alerts.push(alert);
+  return res.status(201).json(alert);
+};
 
-function postAlert(req, res) {
-  const created = alertsService.createAlert(req.body, req.user?.sub);
-  return res.status(201).json(created);
-}
+// PUBLIC_INTERFACE
+exports.listRules = async (req, res) => {
+  return res.status(200).json(store.rules);
+};
 
-function patchAlertResolve(req, res) {
-  const updated = alertsService.resolveAlert(req.params.id, req.user?.sub);
-  if (!updated) return res.status(404).json({ error: 'not_found', message: 'Alert not found' });
-  return res.json(updated);
-}
-
-module.exports = { getAlerts, postAlert, patchAlertResolve };
+// PUBLIC_INTERFACE
+exports.upsertRule = async (req, res) => {
+  const rule = req.body;
+  const idx = store.rules.findIndex(r => r.id === rule.id);
+  if (idx >= 0) store.rules[idx] = rule; else store.rules.push(rule);
+  return res.status(201).json(rule);
+};

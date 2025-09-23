@@ -1,33 +1,18 @@
-'use strict';
-
 const express = require('express');
-const { authMiddleware, requireRoles } = require('../middleware/auth');
-const ingestController = require('../controllers/ingestController');
-const alertsController = require('../controllers/alertsController');
-const rulesController = require('../controllers/alertRulesController');
-const dashboardController = require('../controllers/dashboardController');
-const complianceController = require('../controllers/complianceController');
-
 const router = express.Router();
+const ingestController = require('../controllers/ingestController');
+const alerts = require('../controllers/alertsController');
 
-// Ingestion endpoints (ingest role or admin)
-router.post('/logs', authMiddleware(true), requireRoles(['ingest', 'admin']), ingestController.postLog);
-router.post('/metrics', authMiddleware(true), requireRoles(['ingest', 'admin']), ingestController.postMetric);
+// PUBLIC_INTERFACE
+router.post('/logs', ingestController.ingestLog);
 
-// Alerts
-router.get('/alerts', authMiddleware(true), requireRoles(['analyst', 'admin', 'viewer']), alertsController.getAlerts);
-router.post('/alerts', authMiddleware(true), requireRoles(['analyst', 'admin']), alertsController.postAlert);
-router.patch('/alerts/:id/resolve', authMiddleware(true), requireRoles(['analyst', 'admin']), alertsController.patchAlertResolve);
-
-// Alert rules (CRUD)
-router.get('/alerts/rules', authMiddleware(true), requireRoles(['analyst', 'admin']), rulesController.getRules);
-router.post('/alerts/rules', authMiddleware(true), requireRoles(['analyst', 'admin']), rulesController.postRule);
-router.delete('/alerts/rules/:id', authMiddleware(true), requireRoles(['admin']), rulesController.deleteRule);
-
-// Dashboard
-router.get('/dashboard', authMiddleware(true), requireRoles(['viewer', 'analyst', 'admin']), dashboardController.getDashboard);
-
-// Compliance & audit reporting
-router.get('/compliance/audit', authMiddleware(true), requireRoles(['analyst', 'admin']), complianceController.getAuditReport);
+// PUBLIC_INTERFACE
+router.get('/alerts', alerts.list);
+// PUBLIC_INTERFACE
+router.post('/alerts', alerts.create);
+// PUBLIC_INTERFACE
+router.get('/alerts/rules', alerts.listRules);
+// PUBLIC_INTERFACE
+router.post('/alerts/rules', alerts.upsertRule);
 
 module.exports = router;
